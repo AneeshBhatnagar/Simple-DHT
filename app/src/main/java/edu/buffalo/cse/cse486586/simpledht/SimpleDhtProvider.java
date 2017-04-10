@@ -4,6 +4,9 @@ import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.MatrixCursor;
+import android.database.SQLException;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.telephony.TelephonyManager;
@@ -29,11 +32,17 @@ import java.util.Formatter;
 import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
+import static edu.buffalo.cse.cse486586.simpledht.DatabaseHelper.COLUMN_KEY;
+import static edu.buffalo.cse.cse486586.simpledht.DatabaseHelper.COLUMN_VALUE;
+import static edu.buffalo.cse.cse486586.simpledht.DatabaseHelper.TABLE_NAME;
+
 public class SimpleDhtProvider extends ContentProvider {
     private static final int SERVER_PORT = 10000;
     private static final String PREDECESSOR = "PREDECESSOR";
     private static final String SUCCESSOR = "SUCCESSOR";
     private final String TAG = SimpleDhtProvider.class.getSimpleName();
+    private SQLiteDatabase sqLiteDatabase;
+    private DatabaseHelper databaseHelper;
     private int myPort;
     private Context context;
     private ServerSocket socket;
@@ -45,6 +54,7 @@ public class SimpleDhtProvider extends ContentProvider {
     private String myHash = null;
     private String predecessorHash = null;
     private String successorHash = null;
+    private int joinMessageSentCount = 0;
     private ArrayList<String> chordNodes = new ArrayList<String>();
     private HashMap<String, Integer> hashValues = new HashMap<String, Integer>();
 
@@ -62,14 +72,67 @@ public class SimpleDhtProvider extends ContentProvider {
 
     @Override
     public Uri insert(Uri uri, ContentValues values) {
-        // TODO Auto-generated method stub
+        sqLiteDatabase = databaseHelper.getWritableDatabase();
+        if (predecessorPort == 0 && successorPort == 0) {
+            //Single AVD Running and must insert all values.
+            try {
+                sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                Log.v("insert", values.toString());
+                sqLiteDatabase.close();
+                return uri;
+            } catch (SQLException e) {
+                Log.e(TAG, "SQL Insert Content Provider Error");
+                e.printStackTrace();
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
+                        String sortOrder) {
+        sqLiteDatabase = databaseHelper.getReadableDatabase();
+        String[] colsFetch = {COLUMN_KEY, COLUMN_VALUE};
+        String searchClause = COLUMN_KEY + " = ?";
+        String[] searchQuery = {selection};
+        if (predecessorPort == 0 && successorPort == 0) {
+            //Single AVD running and everything must be done here
+            if (selection.equals("@") || selection.equals("*")) {
+                Cursor cursor = sqLiteDatabase.rawQuery("Select * from " + TABLE_NAME, null);
+                cursor.moveToFirst();
+
+                MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+
+                while (!cursor.isAfterLast()) {
+                    Object[] values = {cursor.getString(0), cursor.getString(1)};
+                    matrixCursor.addRow(values);
+                    cursor.moveToNext();
+                }
+                cursor.close();
+                sqLiteDatabase.close();
+
+                return matrixCursor;
+            }else{
+                Cursor cursor = sqLiteDatabase.query(TABLE_NAME, colsFetch, searchClause, searchQuery, null, null, null);
+                Log.v("query", selection);
+                cursor.moveToFirst();
+                Object[] values = {cursor.getString(0), cursor.getString(1)};
+                MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+                matrixCursor.addRow(values);
+                cursor.close();
+                sqLiteDatabase.close();
+                return matrixCursor;
+            }
+        }
         return null;
     }
 
     @Override
     public boolean onCreate() {
-        // TODO Auto-generated method stub
         context = getContext();
+        databaseHelper = new DatabaseHelper(context);
         TelephonyManager tel = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         String portStr = tel.getLine1Number().substring(tel.getLine1Number().length() - 4);
         myPort = Integer.parseInt(portStr);
@@ -97,10 +160,11 @@ public class SimpleDhtProvider extends ContentProvider {
         if (myPort != joinPort) {
             //Send join request to central joining port
             Request joinRequest = new Request("Join", Integer.toString(myPort));
-            while (joinReqSent == false) {
+            while (joinReqSent == false && joinMessageSentCount < 1) {
                 try {
                     joinReqSent = new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, joinRequest, joinPort * 2).get();
-                    if (joinReqSent == false) {
+                    joinMessageSentCount++;
+                    if (joinReqSent == false && joinMessageSentCount < 1) {
                         Thread.sleep(2000);
                     }
                 } catch (InterruptedException e) {
@@ -118,13 +182,6 @@ public class SimpleDhtProvider extends ContentProvider {
             }
         }
         return false;
-    }
-
-    @Override
-    public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
-                        String sortOrder) {
-        // TODO Auto-generated method stub
-        return null;
     }
 
     @Override
@@ -212,25 +269,25 @@ public class SimpleDhtProvider extends ContentProvider {
                         myHash = genHash(Integer.toString(myPort));
                         predecessorPort = hashValues.get(jsonObject.getString(PREDECESSOR));
                         successorPort = hashValues.get(jsonObject.getString(SUCCESSOR));
-                        Log.d("New Join - Predecessor",Integer.toString(predecessorPort));
-                        Log.d("New Join - Successor",Integer.toString(successorPort));
-                        Log.d("New Join - Hash",predecessorHash);
-                    } else if(request.getType().equals("NewSuccessor")){
+                        Log.d("New Join - Predecessor", Integer.toString(predecessorPort));
+                        Log.d("New Join - Successor", Integer.toString(successorPort));
+                        Log.d("New Join - Hash", predecessorHash);
+                    } else if (request.getType().equals("NewSuccessor")) {
                         successorPort = Integer.parseInt(request.getResponse());
                         successorHash = genHash(request.getResponse());
                         Log.d("New Successor", Integer.toString(successorPort));
-                    } else if(request.getType().equals("NewPredecessor")){
+                    } else if (request.getType().equals("NewPredecessor")) {
                         predecessorPort = Integer.parseInt(request.getResponse());
                         predecessorHash = genHash(request.getResponse());
-                        Log.d("New Predecessor",Integer.toString(predecessorPort));
-                        Log.d("New Predecessor Hash",predecessorHash);
+                        Log.d("New Predecessor", Integer.toString(predecessorPort));
+                        Log.d("New Predecessor Hash", predecessorHash);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                     break;
                 } catch (NoSuchAlgorithmException e) {
                     e.printStackTrace();
-                } catch (JSONException e){
+                } catch (JSONException e) {
                     e.printStackTrace();
                 }
             }
