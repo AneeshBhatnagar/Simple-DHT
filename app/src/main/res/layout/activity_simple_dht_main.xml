@@ -2,7 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".SimpleDhtActivity" >
+    tools:context=".SimpleDhtActivity">
 
     <Button
         android:id="@+id/button1"
@@ -20,6 +20,7 @@
         android:layout_centerHorizontal="true"
         android:text="@string/button_gdump" />
 
+
     <Button
         android:id="@+id/button3"
         android:layout_width="wrap_content"
@@ -28,13 +29,31 @@
         android:layout_alignParentTop="true"
         android:text="@string/button_test" />
 
+    <Button
+        android:id="@+id/button4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@id/button1"
+        android:layout_marginTop="20dp"
+        android:text="Local Delete" />
+
+    <Button
+        android:id="@+id/button5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/button2"
+        android:layout_toRightOf="@id/button4"
+        android:layout_marginTop="20dp"
+        android:text="Global Delete" />
+
     <TextView
         android:id="@+id/textView1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
         android:layout_alignParentRight="true"
-        android:layout_below="@+id/button1"
+        android:layout_below="@+id/button5"
         android:fadeScrollbars="true"
         android:gravity="bottom"
         android:maxLines="17"

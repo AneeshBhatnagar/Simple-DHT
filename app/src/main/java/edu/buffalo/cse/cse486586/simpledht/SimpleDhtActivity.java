@@ -1,12 +1,11 @@
 package edu.buffalo.cse.cse486586.simpledht;
 
+import android.app.Activity;
 import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.app.Activity;
 import android.text.method.ScrollingMovementMethod;
-import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
@@ -16,14 +15,17 @@ public class SimpleDhtActivity extends Activity {
     private TextView tv;
     private ContentResolver contentResolver;
     private Uri uri;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_simple_dht_main);
-        Button globalTest, localTest;
+        Button globalTest, localTest, localDelete, globalDelete;
         contentResolver = getContentResolver();
         globalTest = (Button) findViewById(R.id.button2);
         localTest = (Button) findViewById(R.id.button1);
+        globalDelete = (Button) findViewById(R.id.button5);
+        localDelete = (Button) findViewById(R.id.button4);
 
         Uri.Builder uriBuilder = new Uri.Builder();
         uriBuilder.authority("edu.buffalo.cse.cse486586.simpledht.provider");
@@ -47,19 +49,41 @@ public class SimpleDhtActivity extends Activity {
                 displayCursorOnTextView(resultCursor);
             }
         });
-        
+
+        localDelete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int resp = contentResolver.delete(uri,"@",null);
+                tv.append("Local Delete Response: " + Integer.toString(resp) + "\n" );
+            }
+        });
+
+        globalDelete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                int resp = contentResolver.delete(uri,"*",null);
+                tv.append("Global Delete Response: " + Integer.toString(resp) + "\n" );
+            }
+        });
+
+
         tv = (TextView) findViewById(R.id.textView1);
         tv.setMovementMethod(new ScrollingMovementMethod());
         findViewById(R.id.button3).setOnClickListener(
                 new OnTestClickListener(tv, getContentResolver()));
     }
 
-    public void displayCursorOnTextView(Cursor cursor){
-        cursor.moveToFirst();
-        while(cursor.moveToNext()){
-            tv.append(cursor.getString(0) + ":" + cursor.getString(1) + "\n");
+    public void displayCursorOnTextView(Cursor cursor) {
+
+        if (cursor.moveToFirst()) {
+            while (cursor.moveToNext()) {
+                tv.append(cursor.getString(0) + ":" + cursor.getString(1) + "\n");
+            }
+        }else{
+            tv.append("Empty Result returned!\n");
         }
     }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
