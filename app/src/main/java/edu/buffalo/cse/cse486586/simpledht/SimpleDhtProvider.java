@@ -60,7 +60,20 @@ public class SimpleDhtProvider extends ContentProvider {
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
-        // TODO Auto-generated method stub
+        sqLiteDatabase = databaseHelper.getWritableDatabase();
+        if(predecessorPort == 0 && successorPort == 0){
+            int response;
+            if(selection.equals("*") || selection.equals("@")){
+                //Delete all data in tables
+                response = sqLiteDatabase.delete(TABLE_NAME,null,null);
+            }
+            else{
+                String[] whereArgs = {selection};
+                response = sqLiteDatabase.delete(TABLE_NAME,COLUMN_KEY + "=?" ,whereArgs);
+            }
+            Log.d("Response for delete",Integer.toString(response));
+            return response;
+        }
         return 0;
     }
 
