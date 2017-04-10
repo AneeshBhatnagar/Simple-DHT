@@ -40,6 +40,10 @@ public class SimpleDhtProvider extends ContentProvider {
     private int joinPort = 5554;
     private Boolean joinReqSent = false;
     private Boolean joinedStatus = false;
+    private int predecessorPort = 0;
+    private int successorPort = 0;
+    private String myHash = null;
+    private String predecessorHash = null;
     private ArrayList<String> chordNodes = new ArrayList<String>();
     private HashMap<String, Integer> hashValues = new HashMap<String, Integer>();
 
@@ -200,11 +204,30 @@ public class SimpleDhtProvider extends ContentProvider {
                         request.setResponse(response);
                         request.setType("NewLocation");
                         publishProgress(request);
+                    } else if (request.getType().equals("NewLocation")) {
+                        JSONObject jsonObject = new JSONObject(request.getResponse());
+                        predecessorHash = jsonObject.getString(PREDECESSOR);
+                        myHash = genHash(Integer.toString(myPort));
+                        predecessorPort = hashValues.get(jsonObject.getString(PREDECESSOR));
+                        successorPort = hashValues.get(jsonObject.getString(SUCCESSOR));
+                        Log.d("New Join - Predecessor",Integer.toString(predecessorPort));
+                        Log.d("New Join - Successor",Integer.toString(successorPort));
+                        Log.d("New Join - Hash",predecessorHash);
+                    } else if(request.getType().equals("NewSuccessor")){
+                        successorPort = Integer.parseInt(request.getResponse());
+                        Log.d("New Successor", Integer.toString(successorPort));
+                    } else if(request.getType().equals("NewPredecessor")){
+                        predecessorPort = Integer.parseInt(request.getResponse());
+                        predecessorHash = genHash(request.getResponse());
+                        Log.d("New Predecessor",Integer.toString(predecessorPort));
+                        Log.d("New Predecessor Hash",predecessorHash);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                     break;
                 } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                } catch (JSONException e){
                     e.printStackTrace();
                 }
             }
@@ -238,7 +261,7 @@ public class SimpleDhtProvider extends ContentProvider {
             Collections.sort(chordNodes);
             int index = chordNodes.indexOf(node);
             int n = chordNodes.size();
-            Log.d("Ring order",chordNodes.toString());
+            Log.d("Ring order", chordNodes.toString());
             JSONObject jsonObject = new JSONObject();
             try {
                 if (index == 0) {
