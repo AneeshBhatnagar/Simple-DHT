@@ -44,6 +44,7 @@ public class SimpleDhtProvider extends ContentProvider {
     private int successorPort = 0;
     private String myHash = null;
     private String predecessorHash = null;
+    private String successorHash = null;
     private ArrayList<String> chordNodes = new ArrayList<String>();
     private HashMap<String, Integer> hashValues = new HashMap<String, Integer>();
 
@@ -207,6 +208,7 @@ public class SimpleDhtProvider extends ContentProvider {
                     } else if (request.getType().equals("NewLocation")) {
                         JSONObject jsonObject = new JSONObject(request.getResponse());
                         predecessorHash = jsonObject.getString(PREDECESSOR);
+                        successorHash = jsonObject.getString(SUCCESSOR);
                         myHash = genHash(Integer.toString(myPort));
                         predecessorPort = hashValues.get(jsonObject.getString(PREDECESSOR));
                         successorPort = hashValues.get(jsonObject.getString(SUCCESSOR));
@@ -215,6 +217,7 @@ public class SimpleDhtProvider extends ContentProvider {
                         Log.d("New Join - Hash",predecessorHash);
                     } else if(request.getType().equals("NewSuccessor")){
                         successorPort = Integer.parseInt(request.getResponse());
+                        successorHash = genHash(request.getResponse());
                         Log.d("New Successor", Integer.toString(successorPort));
                     } else if(request.getType().equals("NewPredecessor")){
                         predecessorPort = Integer.parseInt(request.getResponse());
