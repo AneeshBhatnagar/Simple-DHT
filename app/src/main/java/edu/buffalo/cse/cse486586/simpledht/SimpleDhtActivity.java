@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
@@ -74,14 +75,16 @@ public class SimpleDhtActivity extends Activity {
     }
 
     public void displayCursorOnTextView(Cursor cursor) {
-
+        Log.d("Cursor Size:",Integer.toString(cursor.getCount()));
         if (cursor.moveToFirst()) {
-            while (cursor.moveToNext()) {
+            while (!cursor.isAfterLast()) {
                 tv.append(cursor.getString(0) + ":" + cursor.getString(1) + "\n");
+                cursor.moveToNext();
             }
         }else{
             tv.append("Empty Result returned!\n");
         }
+        cursor.close();
     }
 
 

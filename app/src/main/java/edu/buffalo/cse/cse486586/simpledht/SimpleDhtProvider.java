@@ -54,6 +54,7 @@ public class SimpleDhtProvider extends ContentProvider {
     private String myHash = null;
     private String predecessorHash = null;
     private String successorHash = null;
+    private Uri myUri;
     private int joinMessageSentCount = 0;
     private ArrayList<String> chordNodes = new ArrayList<String>();
     private HashMap<String, Integer> hashValues = new HashMap<String, Integer>();
@@ -86,8 +87,33 @@ public class SimpleDhtProvider extends ContentProvider {
     @Override
     public Uri insert(Uri uri, ContentValues values) {
         sqLiteDatabase = databaseHelper.getWritableDatabase();
+        /*Log.d("InsertHashes-P",predecessorHash);
+        Log.d("InsertHashes-S",successorHash);*/
+
+        String hashedKey = "";
+        try{
+            hashedKey = genHash(values.getAsString("key"));
+        }catch (NoSuchAlgorithmException e){
+            e.printStackTrace();
+        }
+        Log.d(values.getAsString("key"),hashedKey);
         if (predecessorPort == 0 && successorPort == 0) {
             //Single AVD Running and must insert all values.
+            Log.d(values.getAsString("key"),"Inserted locally");
+            try {
+                sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                //Log.v("insert", values.toString());
+                sqLiteDatabase.close();
+                return uri;
+            } catch (SQLException e) {
+                Log.e(TAG, "SQL Insert Content Provider Error");
+                e.printStackTrace();
+            } catch (IllegalStateException e) {
+                e.printStackTrace();
+            }
+        }else if (hashedKey.compareTo(predecessorHash) >= 0 && hashedKey.compareTo(myHash) <0){
+            //Insert into own space
+            Log.d(values.getAsString("key"),"Inserted locally by key hash");
             try {
                 sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
                 Log.v("insert", values.toString());
@@ -99,6 +125,48 @@ public class SimpleDhtProvider extends ContentProvider {
             } catch (IllegalStateException e) {
                 e.printStackTrace();
             }
+        }else if (predecessorHash.compareTo(myHash) > 0 && successorHash.compareTo(myHash)> 0){
+            //Kind of like the first node in the ring.
+            Log.d(values.getAsString("key"),"checking last node");
+            if(hashedKey.compareTo(predecessorHash)>=0 || hashedKey.compareTo(myHash)< 0 ){
+                //Insert into own space
+                Log.d(values.getAsString("key"),"Locally inserted because last node");
+                try {
+                    sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                    Log.v("insert", values.toString());
+                    sqLiteDatabase.close();
+                    return uri;
+                } catch (SQLException e) {
+                    Log.e(TAG, "SQL Insert Content Provider Error");
+                    e.printStackTrace();
+                } catch (IllegalStateException e) {
+                    e.printStackTrace();
+                }
+            }else{
+                //Forward to next node
+                Log.d(values.getAsString("key"),"Forwarded to " + Integer.toString(successorPort));
+                JSONObject jsonObject = new JSONObject();
+                try{
+                    jsonObject.put("key",values.getAsString("key"));
+                    jsonObject.put("value",values.getAsString("value"));
+                }catch (JSONException e){
+                    e.printStackTrace();
+                }
+                Request request = new Request("Insert",Integer.toString(myPort),jsonObject.toString());
+                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,request,successorPort*2);
+            }
+        }else{
+            //Forward to next node
+            Log.d(values.getAsString("key"),"Forwarded to " + Integer.toString(successorPort));
+            JSONObject jsonObject = new JSONObject();
+            try{
+                jsonObject.put("key",values.getAsString("key"));
+                jsonObject.put("value",values.getAsString("value"));
+            }catch (JSONException e){
+                e.printStackTrace();
+            }
+            Request request = new Request("Insert",Integer.toString(myPort),jsonObject.toString());
+            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,request,successorPort*2);
         }
         return null;
     }
@@ -110,6 +178,12 @@ public class SimpleDhtProvider extends ContentProvider {
         String[] colsFetch = {COLUMN_KEY, COLUMN_VALUE};
         String searchClause = COLUMN_KEY + " = ?";
         String[] searchQuery = {selection};
+        String hashedKey;
+        try{
+            hashedKey = genHash(selection);
+        }catch (NoSuchAlgorithmException e){
+            e.printStackTrace();
+        }
         if (predecessorPort == 0 && successorPort == 0) {
             //Single AVD running and everything must be done here
             if (selection.equals("@") || selection.equals("*")) {
@@ -129,7 +203,7 @@ public class SimpleDhtProvider extends ContentProvider {
                 return matrixCursor;
             }else{
                 Cursor cursor = sqLiteDatabase.query(TABLE_NAME, colsFetch, searchClause, searchQuery, null, null, null);
-                Log.v("query", selection);
+                //Log.v("query", selection);
                 cursor.moveToFirst();
                 Object[] values = {cursor.getString(0), cursor.getString(1)};
                 MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
@@ -138,6 +212,21 @@ public class SimpleDhtProvider extends ContentProvider {
                 sqLiteDatabase.close();
                 return matrixCursor;
             }
+        }else if(selection.equals("@")){
+            Cursor cursor = sqLiteDatabase.rawQuery("Select * from " + TABLE_NAME, null);
+            cursor.moveToFirst();
+
+            MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+
+            while (!cursor.isAfterLast()) {
+                Object[] values = {cursor.getString(0), cursor.getString(1)};
+                matrixCursor.addRow(values);
+                cursor.moveToNext();
+            }
+            cursor.close();
+            sqLiteDatabase.close();
+
+            return matrixCursor;
         }
         return null;
     }
@@ -146,9 +235,18 @@ public class SimpleDhtProvider extends ContentProvider {
     public boolean onCreate() {
         context = getContext();
         databaseHelper = new DatabaseHelper(context);
+        Uri.Builder uriBuilder = new Uri.Builder();
+        uriBuilder.authority("edu.buffalo.cse.cse486586.simpledht.provider");
+        uriBuilder.scheme("content");
+        myUri = uriBuilder.build();
         TelephonyManager tel = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         String portStr = tel.getLine1Number().substring(tel.getLine1Number().length() - 4);
         myPort = Integer.parseInt(portStr);
+        try{
+            myHash = genHash(Integer.toString(myPort));
+        }catch (NoSuchAlgorithmException e){
+            e.printStackTrace();
+        }
 
         int i = 5554;
         int j = 1;
@@ -224,8 +322,8 @@ public class SimpleDhtProvider extends ContentProvider {
                 DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
                 dataOutputStream.writeUTF(request.getJson());
                 dataOutputStream.flush();
-                Log.d("MSG SENT", request.getJson());
-                Log.d("REMOTE PORT", Integer.toString(remotePort));
+                //Log.d("MSG SENT", request.getJson());
+                //Log.d("REMOTE PORT", Integer.toString(remotePort));
                 DataInputStream dataInputStream = new DataInputStream((socket.getInputStream()));
                 socket.setSoTimeout(5000);
                 String resp = dataInputStream.readUTF();
@@ -279,7 +377,6 @@ public class SimpleDhtProvider extends ContentProvider {
                         JSONObject jsonObject = new JSONObject(request.getResponse());
                         predecessorHash = jsonObject.getString(PREDECESSOR);
                         successorHash = jsonObject.getString(SUCCESSOR);
-                        myHash = genHash(Integer.toString(myPort));
                         predecessorPort = hashValues.get(jsonObject.getString(PREDECESSOR));
                         successorPort = hashValues.get(jsonObject.getString(SUCCESSOR));
                         Log.d("New Join - Predecessor", Integer.toString(predecessorPort));
@@ -294,6 +391,16 @@ public class SimpleDhtProvider extends ContentProvider {
                         predecessorHash = genHash(request.getResponse());
                         Log.d("New Predecessor", Integer.toString(predecessorPort));
                         Log.d("New Predecessor Hash", predecessorHash);
+                    }else if(request.getType().equals("Insert")){
+                        JSONObject jsonObject = new JSONObject(request.getResponse());
+                        ContentValues contentValues = new ContentValues();
+                        try{
+                            contentValues.put("key",jsonObject.getString("key"));
+                            contentValues.put("value",jsonObject.getString("value"));
+                        }catch (JSONException e){
+                            e.printStackTrace();
+                        }
+                        insert(myUri,contentValues);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
