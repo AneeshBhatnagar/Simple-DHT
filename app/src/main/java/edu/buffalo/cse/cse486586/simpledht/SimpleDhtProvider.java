@@ -178,7 +178,7 @@ public class SimpleDhtProvider extends ContentProvider {
         String[] colsFetch = {COLUMN_KEY, COLUMN_VALUE};
         String searchClause = COLUMN_KEY + " = ?";
         String[] searchQuery = {selection};
-        String hashedKey;
+        String hashedKey ="";
         try{
             hashedKey = genHash(selection);
         }catch (NoSuchAlgorithmException e){
@@ -227,6 +227,20 @@ public class SimpleDhtProvider extends ContentProvider {
             sqLiteDatabase.close();
 
             return matrixCursor;
+        }else if(hashedKey.compareTo(predecessorHash)>=0 && hashedKey.compareTo(myHash)<0){
+            //Key is stored locally
+            Cursor cursor = sqLiteDatabase.query(TABLE_NAME, colsFetch, searchClause, searchQuery, null, null, null);
+            //Log.v("query", selection);
+            cursor.moveToFirst();
+            Object[] values = {cursor.getString(0), cursor.getString(1)};
+            MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+            matrixCursor.addRow(values);
+            cursor.close();
+            sqLiteDatabase.close();
+            return matrixCursor;
+        }else{
+            //Ask successor to send the key and wait for response
+
         }
         return null;
     }
