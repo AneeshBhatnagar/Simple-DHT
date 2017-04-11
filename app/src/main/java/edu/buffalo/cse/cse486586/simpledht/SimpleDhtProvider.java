@@ -12,6 +12,7 @@ import android.os.AsyncTask;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -47,32 +48,28 @@ public class SimpleDhtProvider extends ContentProvider {
     private Context context;
     private ServerSocket socket;
     private int joinPort = 5554;
-    private Boolean joinReqSent = false;
-    private Boolean joinedStatus = false;
     private int predecessorPort = 0;
     private int successorPort = 0;
     private String myHash = null;
     private String predecessorHash = null;
     private String successorHash = null;
     private Uri myUri;
-    private int joinMessageSentCount = 0;
     private ArrayList<String> chordNodes = new ArrayList<String>();
     private HashMap<String, Integer> hashValues = new HashMap<String, Integer>();
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         sqLiteDatabase = databaseHelper.getWritableDatabase();
-        if(predecessorPort == 0 && successorPort == 0){
+        if (predecessorPort == 0 && successorPort == 0) {
             int response;
-            if(selection.equals("*") || selection.equals("@")){
+            if (selection.equals("*") || selection.equals("@")) {
                 //Delete all data in tables
-                response = sqLiteDatabase.delete(TABLE_NAME,null,null);
-            }
-            else{
+                response = sqLiteDatabase.delete(TABLE_NAME, null, null);
+            } else {
                 String[] whereArgs = {selection};
-                response = sqLiteDatabase.delete(TABLE_NAME,COLUMN_KEY + "=?" ,whereArgs);
+                response = sqLiteDatabase.delete(TABLE_NAME, COLUMN_KEY + "=?", whereArgs);
             }
-            Log.d("Response for delete",Integer.toString(response));
+            Log.d("Response for delete", Integer.toString(response));
             return response;
         }
         return 0;
@@ -91,15 +88,15 @@ public class SimpleDhtProvider extends ContentProvider {
         Log.d("InsertHashes-S",successorHash);*/
 
         String hashedKey = "";
-        try{
+        try {
             hashedKey = genHash(values.getAsString("key"));
-        }catch (NoSuchAlgorithmException e){
+        } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
-        Log.d(values.getAsString("key"),hashedKey);
+        Log.d(values.getAsString("key"), hashedKey);
         if (predecessorPort == 0 && successorPort == 0) {
             //Single AVD Running and must insert all values.
-            Log.d(values.getAsString("key"),"Inserted locally");
+            Log.d(values.getAsString("key"), "Inserted locally");
             try {
                 sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
                 //Log.v("insert", values.toString());
@@ -111,9 +108,9 @@ public class SimpleDhtProvider extends ContentProvider {
             } catch (IllegalStateException e) {
                 e.printStackTrace();
             }
-        }else if (hashedKey.compareTo(predecessorHash) >= 0 && hashedKey.compareTo(myHash) <0){
+        } else if (hashedKey.compareTo(predecessorHash) >= 0 && hashedKey.compareTo(myHash) < 0) {
             //Insert into own space
-            Log.d(values.getAsString("key"),"Inserted locally by key hash");
+            Log.d(values.getAsString("key"), "Inserted locally by key hash");
             try {
                 sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
                 Log.v("insert", values.toString());
@@ -125,12 +122,12 @@ public class SimpleDhtProvider extends ContentProvider {
             } catch (IllegalStateException e) {
                 e.printStackTrace();
             }
-        }else if (predecessorHash.compareTo(myHash) > 0 && successorHash.compareTo(myHash)> 0){
+        } else if (predecessorHash.compareTo(myHash) > 0 && successorHash.compareTo(myHash) > 0) {
             //Kind of like the first node in the ring.
-            Log.d(values.getAsString("key"),"checking last node");
-            if(hashedKey.compareTo(predecessorHash)>=0 || hashedKey.compareTo(myHash)< 0 ){
+            Log.d(values.getAsString("key"), "checking last node");
+            if (hashedKey.compareTo(predecessorHash) >= 0 || hashedKey.compareTo(myHash) < 0) {
                 //Insert into own space
-                Log.d(values.getAsString("key"),"Locally inserted because last node");
+                Log.d(values.getAsString("key"), "Locally inserted because last node");
                 try {
                     sqLiteDatabase.insertWithOnConflict(TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE);
                     Log.v("insert", values.toString());
@@ -142,31 +139,31 @@ public class SimpleDhtProvider extends ContentProvider {
                 } catch (IllegalStateException e) {
                     e.printStackTrace();
                 }
-            }else{
+            } else {
                 //Forward to next node
-                Log.d(values.getAsString("key"),"Forwarded to " + Integer.toString(successorPort));
+                Log.d(values.getAsString("key"), "Forwarded to " + Integer.toString(successorPort));
                 JSONObject jsonObject = new JSONObject();
-                try{
-                    jsonObject.put("key",values.getAsString("key"));
-                    jsonObject.put("value",values.getAsString("value"));
-                }catch (JSONException e){
+                try {
+                    jsonObject.put("key", values.getAsString("key"));
+                    jsonObject.put("value", values.getAsString("value"));
+                } catch (JSONException e) {
                     e.printStackTrace();
                 }
-                Request request = new Request("Insert",Integer.toString(myPort),jsonObject.toString());
-                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,request,successorPort*2);
+                Request request = new Request("Insert", Integer.toString(myPort), jsonObject.toString());
+                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2);
             }
-        }else{
+        } else {
             //Forward to next node
-            Log.d(values.getAsString("key"),"Forwarded to " + Integer.toString(successorPort));
+            Log.d(values.getAsString("key"), "Forwarded to " + Integer.toString(successorPort));
             JSONObject jsonObject = new JSONObject();
-            try{
-                jsonObject.put("key",values.getAsString("key"));
-                jsonObject.put("value",values.getAsString("value"));
-            }catch (JSONException e){
+            try {
+                jsonObject.put("key", values.getAsString("key"));
+                jsonObject.put("value", values.getAsString("value"));
+            } catch (JSONException e) {
                 e.printStackTrace();
             }
-            Request request = new Request("Insert",Integer.toString(myPort),jsonObject.toString());
-            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,request,successorPort*2);
+            Request request = new Request("Insert", Integer.toString(myPort), jsonObject.toString());
+            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2);
         }
         return null;
     }
@@ -178,10 +175,10 @@ public class SimpleDhtProvider extends ContentProvider {
         String[] colsFetch = {COLUMN_KEY, COLUMN_VALUE};
         String searchClause = COLUMN_KEY + " = ?";
         String[] searchQuery = {selection};
-        String hashedKey ="";
-        try{
+        String hashedKey = "";
+        try {
             hashedKey = genHash(selection);
-        }catch (NoSuchAlgorithmException e){
+        } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
         if (predecessorPort == 0 && successorPort == 0) {
@@ -201,7 +198,7 @@ public class SimpleDhtProvider extends ContentProvider {
                 sqLiteDatabase.close();
 
                 return matrixCursor;
-            }else{
+            } else {
                 Cursor cursor = sqLiteDatabase.query(TABLE_NAME, colsFetch, searchClause, searchQuery, null, null, null);
                 //Log.v("query", selection);
                 cursor.moveToFirst();
@@ -212,7 +209,7 @@ public class SimpleDhtProvider extends ContentProvider {
                 sqLiteDatabase.close();
                 return matrixCursor;
             }
-        }else if(selection.equals("@")){
+        } else if (selection.equals("@")) {
             Cursor cursor = sqLiteDatabase.rawQuery("Select * from " + TABLE_NAME, null);
             cursor.moveToFirst();
 
@@ -227,7 +224,72 @@ public class SimpleDhtProvider extends ContentProvider {
             sqLiteDatabase.close();
 
             return matrixCursor;
-        }else if(hashedKey.compareTo(predecessorHash)>=0 && hashedKey.compareTo(myHash)<0){
+        } else if (selection.equals("*")) {
+            //Fetch results from all other devices and combine with own results
+            Request request = new Request("Query", Integer.toString(myPort), selection);
+            try {
+                String response = new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2).get();
+                JSONObject jsonObject = new JSONObject(response);
+                JSONArray keysArray = jsonObject.getJSONArray("keys");
+                JSONArray valuesArray = jsonObject.getJSONArray("values");
+                MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+                for (int i = 0; i < keysArray.length(); i++) {
+                    Object[] values = {keysArray.getString(i), valuesArray.getString(i)};
+                    matrixCursor.addRow(values);
+                }
+                Cursor cursor = sqLiteDatabase.rawQuery("Select * from " + TABLE_NAME, null);
+                cursor.moveToFirst();
+                while (!cursor.isAfterLast()) {
+                    Object[] values = {cursor.getString(0), cursor.getString(1)};
+                    matrixCursor.addRow(values);
+                    cursor.moveToNext();
+                }
+                cursor.close();
+                sqLiteDatabase.close();
+                return matrixCursor;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+        } else if (selection.charAt(0) == '*' && selection.charAt(1) == '#') {
+            //* Query at some other avd and just recursion here.
+            String[] split = selection.split("#");
+            MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+            if (Integer.parseInt(split[1]) != successorPort) {
+                try {
+                    Request request = new Request("Query", split[1], split[0]);
+                    String response = new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2).get();
+                    JSONObject jsonObject = new JSONObject(response);
+                    JSONArray keysArray = jsonObject.getJSONArray("keys");
+                    JSONArray valuesArray = jsonObject.getJSONArray("values");
+                    for (int i = 0; i < keysArray.length(); i++) {
+                        Object[] values = {keysArray.getString(i), valuesArray.getString(i)};
+                        matrixCursor.addRow(values);
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            Cursor cursor = sqLiteDatabase.rawQuery("Select * from " + TABLE_NAME, null);
+            cursor.moveToFirst();
+            while (!cursor.isAfterLast()) {
+                Object[] values = {cursor.getString(0), cursor.getString(1)};
+                matrixCursor.addRow(values);
+                cursor.moveToNext();
+            }
+            cursor.close();
+            sqLiteDatabase.close();
+            return matrixCursor;
+
+        } else if (hashedKey.compareTo(predecessorHash) >= 0 && hashedKey.compareTo(myHash) < 0 || ((predecessorHash.compareTo(myHash) > 0 && successorHash.compareTo(myHash) > 0) && (hashedKey.compareTo(predecessorHash) >= 0 || hashedKey.compareTo(myHash) < 0))) {
             //Key is stored locally
             Cursor cursor = sqLiteDatabase.query(TABLE_NAME, colsFetch, searchClause, searchQuery, null, null, null);
             //Log.v("query", selection);
@@ -238,8 +300,24 @@ public class SimpleDhtProvider extends ContentProvider {
             cursor.close();
             sqLiteDatabase.close();
             return matrixCursor;
-        }else{
+        } else {
             //Ask successor to send the key and wait for response
+            Request request = new Request("Query", Integer.toString(myPort), selection);
+            try {
+                String response = new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2).get();
+                JSONObject jsonObject = new JSONObject(response);
+                Object[] values = {jsonObject.getString("key"), jsonObject.getString("value")};
+                MatrixCursor matrixCursor = new MatrixCursor(colsFetch);
+                matrixCursor.addRow(values);
+                sqLiteDatabase.close();
+                return matrixCursor;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
 
         }
         return null;
@@ -256,9 +334,9 @@ public class SimpleDhtProvider extends ContentProvider {
         TelephonyManager tel = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         String portStr = tel.getLine1Number().substring(tel.getLine1Number().length() - 4);
         myPort = Integer.parseInt(portStr);
-        try{
+        try {
             myHash = genHash(Integer.toString(myPort));
-        }catch (NoSuchAlgorithmException e){
+        } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
 
@@ -285,20 +363,7 @@ public class SimpleDhtProvider extends ContentProvider {
         if (myPort != joinPort) {
             //Send join request to central joining port
             Request joinRequest = new Request("Join", Integer.toString(myPort));
-            while (joinReqSent == false && joinMessageSentCount < 1) {
-                try {
-                    joinReqSent = new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, joinRequest, joinPort * 2).get();
-                    joinMessageSentCount++;
-                    if (joinReqSent == false && joinMessageSentCount < 1) {
-                        Thread.sleep(2000);
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                }
-            }
-            Log.d(TAG, "Join Req Sent");
+            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, joinRequest, joinPort * 2);
         } else {
             try {
                 chordNodes.add(genHash(Integer.toString(myPort)));
@@ -325,9 +390,9 @@ public class SimpleDhtProvider extends ContentProvider {
         return formatter.toString();
     }
 
-    private class ClientTask extends AsyncTask<Object, Void, Boolean> {
+    private class ClientTask extends AsyncTask<Object, Void, String> {
         @Override
-        protected Boolean doInBackground(Object... msg) {
+        protected String doInBackground(Object... msg) {
             Request request = (Request) msg[0];
             int remotePort = (Integer) msg[1];
             try {
@@ -343,7 +408,9 @@ public class SimpleDhtProvider extends ContentProvider {
                 String resp = dataInputStream.readUTF();
                 if (resp.equals("OK")) {
                     socket.close();
-                    return true;
+                } else {
+                    socket.close();
+                    return resp;
                 }
             } catch (SocketTimeoutException e) {
                 Log.d("SocketTimeOut", "Exception for" + Integer.toString(remotePort));
@@ -352,10 +419,10 @@ public class SimpleDhtProvider extends ContentProvider {
             } catch (IOException e) {
                 Log.d("IOEXCEPTION", "Timeout on " + Integer.toString(remotePort));
                 e.printStackTrace();
-                return false;
+                return null;
             }
 
-            return false;
+            return null;
         }
     }
 
@@ -374,11 +441,14 @@ public class SimpleDhtProvider extends ContentProvider {
                     DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
                     String jsonString = dataInputStream.readUTF();
                     Request request = new Request(jsonString);
-                    dataOutputStream.writeUTF("OK");
-                    socket.close();
-                    dataOutputStream.flush();
-                    dataInputStream.close();
-                    dataOutputStream.close();
+                    if (!request.getType().equals("Query")) {
+                        dataOutputStream.writeUTF("OK");
+                        socket.close();
+                        dataOutputStream.flush();
+                        dataInputStream.close();
+                        dataOutputStream.close();
+                    }
+
                     Log.d("Request Received", jsonString);
 
                     //Process messages of this type: JOIN, NEWLOCATION, NEWSUCCESSOR,NEWPREDECESSOR
@@ -405,16 +475,47 @@ public class SimpleDhtProvider extends ContentProvider {
                         predecessorHash = genHash(request.getResponse());
                         Log.d("New Predecessor", Integer.toString(predecessorPort));
                         Log.d("New Predecessor Hash", predecessorHash);
-                    }else if(request.getType().equals("Insert")){
+                    } else if (request.getType().equals("Insert")) {
                         JSONObject jsonObject = new JSONObject(request.getResponse());
                         ContentValues contentValues = new ContentValues();
-                        try{
-                            contentValues.put("key",jsonObject.getString("key"));
-                            contentValues.put("value",jsonObject.getString("value"));
-                        }catch (JSONException e){
+                        try {
+                            contentValues.put("key", jsonObject.getString("key"));
+                            contentValues.put("value", jsonObject.getString("value"));
+                        } catch (JSONException e) {
                             e.printStackTrace();
                         }
-                        insert(myUri,contentValues);
+                        insert(myUri, contentValues);
+                    } else if (request.getType().equals("Query")) {
+                        JSONObject response = new JSONObject();
+                        String query = request.getResponse();
+                        if (query.equals("*")) {
+                            Cursor cursor = query(myUri, null, "*#" + request.getOriginalPort(), null, null);
+                            JSONArray keysArray = new JSONArray();
+                            JSONArray valuesArray = new JSONArray();
+                            cursor.moveToFirst();
+                            int i = 0;
+                            while (!cursor.isAfterLast()) {
+                                keysArray.put(i, cursor.getString(cursor.getColumnIndex("key")));
+                                valuesArray.put(i, cursor.getString(cursor.getColumnIndex("value")));
+                                i++;
+                                cursor.moveToNext();
+                            }
+                            response.put("keys", keysArray);
+                            response.put("values", valuesArray);
+                            cursor.close();
+                        } else {
+                            Cursor cursor = query(myUri, null, query, null, null);
+                            cursor.moveToFirst();
+                            response.put("key", cursor.getString(cursor.getColumnIndex("key")));
+                            response.put("value", cursor.getString(cursor.getColumnIndex("value")));
+                            cursor.close();
+                        }
+
+                        dataOutputStream.writeUTF(response.toString());
+                        socket.close();
+                        dataOutputStream.flush();
+                        dataInputStream.close();
+                        dataOutputStream.close();
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
