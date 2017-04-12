@@ -21,13 +21,12 @@ public class SimpleDhtActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_simple_dht_main);
-        Button globalTest, localTest, localDelete, globalDelete, randomQuery;
+        Button globalTest, localTest, localDelete, globalDelete;
         contentResolver = getContentResolver();
         globalTest = (Button) findViewById(R.id.button2);
         localTest = (Button) findViewById(R.id.button1);
         globalDelete = (Button) findViewById(R.id.button5);
         localDelete = (Button) findViewById(R.id.button4);
-        randomQuery = (Button) findViewById(R.id.button6);
 
         Uri.Builder uriBuilder = new Uri.Builder();
         uriBuilder.authority("edu.buffalo.cse.cse486586.simpledht.provider");
@@ -67,16 +66,6 @@ public class SimpleDhtActivity extends Activity {
                 tv.append("Global Delete Response: " + Integer.toString(resp) + "\n");
             }
         });
-
-        randomQuery.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Cursor resultCursor = contentResolver.query(uri, null,
-                        "key20", null, null);
-                displayCursorOnTextView(resultCursor);
-            }
-        });
-
 
         tv = (TextView) findViewById(R.id.textView1);
         tv.setMovementMethod(new ScrollingMovementMethod());
