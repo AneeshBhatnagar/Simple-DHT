@@ -60,6 +60,13 @@ public class SimpleDhtProvider extends ContentProvider {
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         sqLiteDatabase = databaseHelper.getWritableDatabase();
+        String hashedKey = "";
+        try {
+            hashedKey = genHash(selection);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
         if (predecessorPort == 0 && successorPort == 0) {
             int response;
             if (selection.equals("*") || selection.equals("@")) {
@@ -71,6 +78,31 @@ public class SimpleDhtProvider extends ContentProvider {
             }
             Log.d("Response for delete", Integer.toString(response));
             return response;
+        } else if (selection.equals("@")) {
+            //Delete all local data
+            return sqLiteDatabase.delete(TABLE_NAME, null, null);
+        } else if (selection.equals("*")) {
+            //Delete all of own data and ask all nodes to delete as well
+            Request request = new Request("Delete",Integer.toString(myPort),selection);
+            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2);
+            return sqLiteDatabase.delete(TABLE_NAME, null, null);
+        } else if (selection.charAt(0) == '*' && selection.charAt(1) == '#') {
+            // * Delete at some other avd and just forwarded here. Delete own and
+            // forward to successor if successor is not original port
+            String[] split = selection.split("#");
+            if(!split[1].equals(Integer.toString(successorPort))){
+                Request request = new Request("Delete",split[1],"*");
+                new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2);
+            }
+            return sqLiteDatabase.delete(TABLE_NAME, null, null);
+        } else if (hashedKey.compareTo(predecessorHash) >= 0 && hashedKey.compareTo(myHash) < 0 || ((predecessorHash.compareTo(myHash) > 0 && successorHash.compareTo(myHash) > 0) && (hashedKey.compareTo(predecessorHash) >= 0 || hashedKey.compareTo(myHash) < 0))) {
+            //Key is stored locally.. Delete it
+            String[] whereArgs = {selection};
+            return sqLiteDatabase.delete(TABLE_NAME, COLUMN_KEY + "=?", whereArgs);
+        } else {
+            //Ask successor to delete the key
+            Request request = new Request("Delete", Integer.toString(myPort), selection);
+            new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, request, successorPort * 2);
         }
         return 0;
     }
@@ -516,6 +548,13 @@ public class SimpleDhtProvider extends ContentProvider {
                         dataOutputStream.flush();
                         dataInputStream.close();
                         dataOutputStream.close();
+                    } else if(request.getType().equals("Delete")){
+                        if(request.getResponse().equals("*")){
+                            delete(myUri, "*#"+request.getOriginalPort(), null);
+                        }
+                        else{
+                            delete(myUri,request.getResponse(),null);
+                        }
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
