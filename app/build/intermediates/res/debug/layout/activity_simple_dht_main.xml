@@ -47,22 +47,13 @@
         android:layout_marginTop="20dp"
         android:text="Global Delete" />
 
-    <Button
-        android:id="@+id/button6"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/button5"
-        android:layout_toRightOf="@id/button4"
-        android:layout_marginTop="20dp"
-        android:text="Query for key20" />
-
     <TextView
         android:id="@+id/textView1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
         android:layout_alignParentRight="true"
-        android:layout_below="@+id/button6"
+        android:layout_below="@+id/button5"
         android:fadeScrollbars="true"
         android:gravity="bottom"
         android:maxLines="17"
